@@ -1,33 +1,43 @@
-from flask import request
+import os
+import json
+from flask import Blueprint, request
 from datetime import datetime, timedelta
-import os, json
 
-INBOX_DIR = "inboxes"
+email_handler = Blueprint('email_handler', __name__)
 
-if not os.path.exists(INBOX_DIR):
-    os.makedirs(INBOX_DIR)
+# In-memory store for email inboxes
+INBOXES = {}
 
-def save_email_to_inbox(data):
-    to_address = data.get("to", "")
-    email_user = to_address.split("@")[0].lower()
+@email_handler.route("/api/incoming", methods=["POST"])
+def receive_email():
+    data = request.form
 
-    inbox_file = os.path.join(INBOX_DIR, f"{email_user}.json")
-    
-    inbox = []
-    if os.path.exists(inbox_file):
-        with open(inbox_file, "r") as f:
-            inbox = json.load(f)
+    to_address = data.get("to", "").strip().lower()
+    subject = data.get("subject", "")
+    sender = data.get("from", "")
+    text = data.get("text", "")
+    timestamp = datetime.utcnow()
 
-    email_obj = {
-        "from": data.get("from"),
-        "subject": data.get("subject", "No subject"),
-        "body": data.get("text", ""),
-        "time": datetime.utcnow().isoformat()
-    }
+    if "@kaicore.ai" not in to_address:
+        return "Invalid address", 400
 
-    inbox.append(email_obj)
+    if to_address not in INBOXES:
+        INBOXES[to_address] = []
 
-    with open(inbox_file, "w") as f:
-        json.dump(inbox, f, indent=2)
+    INBOXES[to_address].append({
+        "from": sender,
+        "subject": subject,
+        "text": text,
+        "time": timestamp.isoformat()
+    })
 
-    return True
+    return "Email received", 200
+
+# Auto-expiry cleanup (to be called periodically)
+def cleanup_expired():
+    now = datetime.utcnow()
+    expired = now - timedelta(hours=3)
+    for addr in list(INBOXES.keys()):
+        INBOXES[addr] = [msg for msg in INBOXES[addr] if datetime.fromisoformat(msg["time"]) > expired]
+        if not INBOXES[addr]:
+            del INBOXES[addr]
