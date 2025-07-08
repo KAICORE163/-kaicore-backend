@@ -43,4 +43,20 @@ def get_inbox():
     return jsonify(inbox)
 
 if __name__ == "__main__":
+    app.run()from flask import Flask, request, jsonify
+from email_handler import save_email_to_inbox
+
+app = Flask(__name__)
+
+@app.route("/api/incoming", methods=["POST"])
+def incoming_email():
+    try:
+        data = request.json
+        save_email_to_inbox(data)
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
     app.run()
+
