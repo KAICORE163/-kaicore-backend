@@ -1,14 +1,13 @@
 from flask import Flask, request, jsonify
-from datetime import datetime, timedelta
+from datetime import datetime
 import threading
 
 app = Flask(__name__)
-
 inboxes = {}
 
 @app.route("/")
 def home():
-    return "KAICORE Inbox API Running"
+    return "✅ KAICORE Inbox API is live"
 
 @app.route("/api/incoming", methods=["POST"])
 def receive_email():
@@ -18,7 +17,7 @@ def receive_email():
     body = request.form.get("body-plain", "")
 
     if not to_email:
-        return "Missing recipient", 400
+        return "❌ Missing recipient", 400
 
     inbox = inboxes.setdefault(to_email, [])
     inbox.append({
@@ -28,35 +27,19 @@ def receive_email():
         "time": datetime.utcnow().isoformat()
     })
 
-    # Auto-delete inbox after 3 hours
+    # Delete inbox after 3 hours
     threading.Timer(3 * 3600, lambda: inboxes.pop(to_email, None)).start()
 
-    return "Email received", 200
+    return "✅ Email received", 200
 
 @app.route("/api/inbox", methods=["GET"])
 def get_inbox():
     email = request.args.get("email")
     if not email:
-        return "Missing email", 400
+        return "❌ Missing email", 400
 
-    inbox = inboxes.get(email, [])
-    return jsonify(inbox)
-
-if __name__ == "__main__":
-    app.run()from flask import Flask, request, jsonify
-from email_handler import save_email_to_inbox
-
-app = Flask(__name__)
-
-@app.route("/api/incoming", methods=["POST"])
-def incoming_email():
-    try:
-        data = request.json
-        save_email_to_inbox(data)
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    return jsonify(inboxes.get(email, []))
 
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
 
